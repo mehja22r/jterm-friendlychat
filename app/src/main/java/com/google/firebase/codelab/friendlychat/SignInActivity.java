@@ -48,6 +48,7 @@ public class SignInActivity extends AppCompatActivity implements
     private GoogleApiClient mGoogleApiClient;
 
     // Firebase instance variables
+    private FirebaseAuth mFirebaseAuth;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,15 +72,60 @@ public class SignInActivity extends AppCompatActivity implements
                 .build();
 
         // Initialize FirebaseAuth
+        mFirebaseAuth = FirebaseAuth.getInstance();
     }
 
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
             case R.id.sign_in_button:
+                signIn();
                 break;
         }
     }
+
+    private void signIn() {
+        Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(mGoogleApiClient);
+        startActivityForResult(signInIntent, RC_SIGN_IN );
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == RC_SIGN_IN) {
+            GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
+            if (result.isSuccess()) {
+                //Google sign in was good, authenticate with firebase
+                GoogleSignInAccount account = result.getSignInAccount();
+                firebaseAuthWithGoogle(account);
+            }
+            else {
+                Log.e(TAG, "Google gign in failed");
+            }
+        }
+    }
+
+    //d-debug, w-warn, e-error
+    private void firebaseAuthWithGoogle(GoogleSignInAccount account) {
+        Log.d(TAG, String.format("firebaseAuthWithGoogle: %s", account.getId()));
+        AuthCredential credential = GoogleAuthProvider.getCredential(account.getIdToken(), null);
+        mFirebaseAuth.signInWithCredential(credential).addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
+            @Override
+            public void onComplete(@NonNull Task<AuthResult> task) {
+                Log.d(TAG, String.format("signInWIthCredential: On complete: %b", task.isSuccessful()));
+                if (task.isSuccessful()) {
+                    startActivity(new Intent(SignInActivity.this, MainActivity.class));
+                    finish();
+                }
+                else {
+                    Log.w(TAG, "signInWIthCredential: failed", task.getException());
+                    Toast.makeText(SignInActivity.this, "Authentication failed", Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+    }
+
 
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
